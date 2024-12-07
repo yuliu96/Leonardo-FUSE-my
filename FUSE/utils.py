@@ -86,50 +86,26 @@ def imagej_metadata_tags(metadata, byteorder):
     )
 
 
-def fusion_perslice(topSlice, bottomSlice, topMask, bottomMask, GFr, device):
-    n, c, m, n = topSlice.shape
+def fusion_perslice(x, mask, GFr, device):
+    n, c, m, n = x.shape
     GF = GuidedFilter(r=GFr, eps=1)
-    topSlice = torch.from_numpy(topSlice).to(device)
-    bottomSlice = torch.from_numpy(bottomSlice).to(device)
-    if isinstance(topMask, np.ndarray):
-        topMask = torch.from_numpy(topMask).to(device).to(torch.float)
-        bottomMask = torch.from_numpy(bottomMask).to(device).to(torch.float)
+    x = torch.from_numpy(x).to(device)
+    if isinstance(mask, np.ndarray):
+        mask = torch.from_numpy(mask).to(device).to(torch.float)
 
-    result0, num0 = GF(bottomSlice, bottomMask)
-    result1, num1 = GF(topSlice, topMask)
-
-    num0 = num0 == (2 * GFr[1] + 1) * (2 * GFr[1] + 1) * GFr[0]
-    num1 = num1 == (2 * GFr[1] + 1) * (2 * GFr[1] + 1) * GFr[0]
-
-    result0[num0] = 1
-    result1[num1] = 1
-
-    result0[num1] = 0
-    result1[num0] = 0
-
-    t = result0 + result1
-
-    result0, result1 = result0 / t, result1 / t
-
-    minn, maxx = min(topSlice.min(), bottomSlice.min()), max(
-        topSlice.max(), bottomSlice.max()
-    )
-
-    bottom_seg = (
-        result0 * bottomSlice[:, c // 2 : c // 2 + 1, :, :]
-    )  # + result0detail * bottomDetail
-    top_seg = (
-        result1 * topSlice[:, c // 2 : c // 2 + 1, :, :]
-    )  # + result1detail * topDetail
-
-    result = torch.clip(bottom_seg + top_seg, minn, maxx)
-    bottom_seg = torch.clip(bottom_seg, bottomSlice.min(), bottomSlice.max())
-    top_seg = torch.clip(top_seg, topSlice.min(), topSlice.max())
+    result, num = GF(x, mask)
+    num = num == (2 * GFr[1] + 1) * (2 * GFr[1] + 1) * GFr[0]
+    result[num] = 1
+    result = result / result.sum(0, keepdim=True)
+    minn, maxx = x.min(), x.max()
+    y_seg = x[:, c // 2 : c // 2 + 1, :, :] * result
+    y = torch.clip(y_seg.sum(0), minn, maxx)
+    y_seg = torch.clip(y_seg.sum(0), minn, maxx)
 
     return (
-        result.squeeze().cpu().data.numpy().astype(np.uint16),
-        top_seg.squeeze().cpu().data.numpy().astype(np.uint16),
-        bottom_seg.squeeze().cpu().data.numpy().astype(np.uint16),
+        y.squeeze().cpu().data.numpy().astype(np.uint16),
+        y_seg.squeeze().cpu().data.numpy().astype(np.uint16),
+        result.squeeze().cpu().data.numpy(),
     )
 
 
@@ -336,7 +312,9 @@ def EM2DPlus(
             .to(device)
         )
         if _xy == True:
-            tmp = copy.deepcopy(min_boundary.cpu().data.numpy())#min_boundary.cpu().data.numpy()
+            tmp = copy.deepcopy(
+                min_boundary.cpu().data.numpy()
+            )  # min_boundary.cpu().data.numpy()
             tmp[tmp != m1 * 2] = 0
             _, ind = scipy.ndimage.distance_transform_edt(
                 tmp, return_distances=True, return_indices=True, sampling=[1, 1e3]
@@ -344,7 +322,9 @@ def EM2DPlus(
             min_boundary[min_boundary == m1 * 2] = min_boundary[ind[0], ind[1]][
                 min_boundary == m1 * 2
             ]
-            tmp = copy.deepcopy(max_boundary.cpu().data.numpy())#max_boundary.cpu().data.numpy()
+            tmp = copy.deepcopy(
+                max_boundary.cpu().data.numpy()
+            )  # max_boundary.cpu().data.numpy()
             tmp[tmp != -m1 * 2] = 0
             _, ind = scipy.ndimage.distance_transform_edt(
                 tmp, return_distances=True, return_indices=True, sampling=[1, 1e3]

@@ -464,22 +464,62 @@ class FUSE_illu:
         ).astype(np.float32)
         if cam_pos == "back":
             boundaryE = boundaryE[::-1, :]
+        if os.path.exists(
+            os.path.join(
+                save_path, self.sample_params["topillu_saving_name"], "fusion_mask"
+            )
+        ):
+            shutil.rmtree(
+                os.path.exists(
+                    os.path.join(
+                        save_path,
+                        self.sample_params["topillu_saving_name"],
+                        "fusion_mask",
+                    )
+                )
+            )
+        else:
+            os.makedirs(
+                os.path.exists(
+                    os.path.join(
+                        save_path,
+                        self.sample_params["topillu_saving_name"],
+                        "fusion_mask",
+                    )
+                )
+            )
         if save_separate_results:
             recon, reconVol_separate = fusionResult(
+                T_flag,
                 rawPlanes_top,
                 rawPlanes_bottom,
                 copy.deepcopy(boundaryE),
                 self.train_params["device"],
                 save_separate_results,
+                path=os.path.exists(
+                    os.path.join(
+                        save_path,
+                        self.sample_params["topillu_saving_name"],
+                        "fusion_mask",
+                    )
+                ),
                 GFr=copy.deepcopy(self.train_params["window_size"]),
             )
         else:
             recon = fusionResult(
+                T_flag,
                 rawPlanes_top,
                 rawPlanes_bottom,
                 copy.deepcopy(boundaryE),
                 self.train_params["device"],
                 save_separate_results,
+                path=os.path.exists(
+                    os.path.join(
+                        save_path,
+                        self.sample_params["topillu_saving_name"],
+                        "fusion_mask",
+                    )
+                ),
                 GFr=copy.deepcopy(self.train_params["window_size"]),
             )
         if T_flag:
@@ -787,11 +827,13 @@ class FUSE_illu:
 
 
 def fusionResult(
+    T_flag,
     topVol,
     bottomVol,
     boundary,
     device,
     save_separate_results,
+    path,
     GFr=[5, 49],
 ):
     s, m, n = topVol.shape
@@ -823,17 +865,29 @@ def fusionResult(
         ind = ii - GFr[0] // 2
 
         a, b, c = fusion_perslice(
-            topVol[l_s, :, :].astype(np.float32)[None],
-            bottomVol[l_s, :, :].astype(np.float32)[None],
-            topMask,
-            bottomMask,
+            np.stack(
+                (
+                    topVol[l_s, :, :].astype(np.float32),
+                    bottomVol[l_s, :, :].astype(np.float32),
+                ),
+                0,
+            ),
+            torch.cat((topMask, bottomMask), 0),
             GFr,
             device,
         )
         if save_separate_results:
-            recon[ind], reconVol_separate[ind, 0], reconVol_separate[ind, 1] = a, b, c
+            recon[ind], reconVol_separate[ind, :] = a, b
         else:
             recon[ind] = a
+        np.savez_compressed(
+            os.path.join(
+                path,
+                "{:0>{}}".format(ind, 5) + ".npz",
+                mask=c.transpose(0, 2, 1) if T_flag else c,
+            ),
+            c,
+        )
     if save_separate_results:
         return recon, reconVol_separate
     else:
