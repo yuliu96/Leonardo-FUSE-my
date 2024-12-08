@@ -66,7 +66,6 @@ from FUSE.utils import (
     sgolay2dkernel,
     waterShed,
     refineShape,
-    extendBoundary,
     EM2DPlus,
     fusion_perslice,
     imagej_metadata_tags,
@@ -464,28 +463,24 @@ class FUSE_illu:
         ).astype(np.float32)
         if cam_pos == "back":
             boundaryE = boundaryE[::-1, :]
-        if os.path.exists(
-            os.path.join(
-                save_path, self.sample_params["topillu_saving_name"], "fusion_mask"
-            )
-        ):
-            shutil.rmtree(
-                os.path.exists(
+        if save_separate_results:
+            if os.path.exists(
+                os.path.join(
+                    save_path, self.sample_params["topillu_saving_name"], "fusion_mask"
+                )
+            ):
+                shutil.rmtree(
                     os.path.join(
                         save_path,
                         self.sample_params["topillu_saving_name"],
                         "fusion_mask",
                     )
                 )
-            )
-        else:
             os.makedirs(
-                os.path.exists(
-                    os.path.join(
-                        save_path,
-                        self.sample_params["topillu_saving_name"],
-                        "fusion_mask",
-                    )
+                os.path.join(
+                    save_path,
+                    self.sample_params["topillu_saving_name"],
+                    "fusion_mask",
                 )
             )
         if save_separate_results:
@@ -496,12 +491,10 @@ class FUSE_illu:
                 copy.deepcopy(boundaryE),
                 self.train_params["device"],
                 save_separate_results,
-                path=os.path.exists(
-                    os.path.join(
-                        save_path,
-                        self.sample_params["topillu_saving_name"],
-                        "fusion_mask",
-                    )
+                path=os.path.join(
+                    save_path,
+                    self.sample_params["topillu_saving_name"],
+                    "fusion_mask",
                 ),
                 GFr=copy.deepcopy(self.train_params["window_size"]),
             )
@@ -513,12 +506,10 @@ class FUSE_illu:
                 copy.deepcopy(boundaryE),
                 self.train_params["device"],
                 save_separate_results,
-                path=os.path.exists(
-                    os.path.join(
-                        save_path,
-                        self.sample_params["topillu_saving_name"],
-                        "fusion_mask",
-                    )
+                path=os.path.join(
+                    save_path,
+                    self.sample_params["topillu_saving_name"],
+                    "fusion_mask",
                 ),
                 GFr=copy.deepcopy(self.train_params["window_size"]),
             )
@@ -878,16 +869,15 @@ def fusionResult(
         )
         if save_separate_results:
             recon[ind], reconVol_separate[ind, :] = a, b
+            np.savez_compressed(
+                os.path.join(
+                    path,
+                    "{:0>{}}".format(ind, 5) + ".npz",
+                ),
+                mask=c.transpose(0, 2, 1) if T_flag else c,
+            )
         else:
             recon[ind] = a
-        np.savez_compressed(
-            os.path.join(
-                path,
-                "{:0>{}}".format(ind, 5) + ".npz",
-                mask=c.transpose(0, 2, 1) if T_flag else c,
-            ),
-            c,
-        )
     if save_separate_results:
         return recon, reconVol_separate
     else:
