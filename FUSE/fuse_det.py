@@ -2876,7 +2876,7 @@ def fusionResultFour(
                 ),
                 0,
             )
-        a, b, c = fusion_perslice(
+        a, c = fusion_perslice(
             data,
             mask,
             GFr,
