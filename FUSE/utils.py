@@ -100,11 +100,9 @@ def fusion_perslice(x, mask, GFr, device):
     minn, maxx = x.min(), x.max()
     y_seg = x[:, c // 2 : c // 2 + 1, :, :] * result
     y = torch.clip(y_seg.sum(0), minn, maxx)
-    y_seg = torch.clip(y_seg.sum(0), minn, maxx)
 
     return (
         y.squeeze().cpu().data.numpy().astype(np.uint16),
-        y_seg.squeeze().cpu().data.numpy().astype(np.uint16),
         result.squeeze().cpu().data.numpy(),
     )
 

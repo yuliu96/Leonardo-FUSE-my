@@ -485,48 +485,25 @@ class FUSE_illu:
                     "fuse_illu_mask",
                 )
             )
-        if save_separate_results:
-            recon, reconVol_separate = fusionResult(
-                T_flag,
-                rawPlanes_top,
-                rawPlanes_bottom,
-                copy.deepcopy(boundaryE),
-                self.train_params["device"],
-                save_separate_results,
-                path=os.path.join(
-                    save_path,
-                    self.sample_params["topillu_saving_name"],
-                    "fuse_illu_mask",
-                ),
-                GFr=copy.deepcopy(self.train_params["window_size"]),
-            )
-        else:
-            recon = fusionResult(
-                T_flag,
-                rawPlanes_top,
-                rawPlanes_bottom,
-                copy.deepcopy(boundaryE),
-                self.train_params["device"],
-                save_separate_results,
-                path=os.path.join(
-                    save_path,
-                    self.sample_params["topillu_saving_name"],
-                    "fuse_illu_mask",
-                ),
-                GFr=copy.deepcopy(self.train_params["window_size"]),
-            )
+        recon = fusionResult(
+            T_flag,
+            rawPlanes_top,
+            rawPlanes_bottom,
+            copy.deepcopy(boundaryE),
+            self.train_params["device"],
+            save_separate_results,
+            path=os.path.join(
+                save_path,
+                self.sample_params["topillu_saving_name"],
+                "fuse_illu_mask",
+            ),
+            GFr=copy.deepcopy(self.train_params["window_size"]),
+        )
         if T_flag:
             result = recon.transpose(0, 2, 1)
-            if save_separate_results:
-                result_separate = reconVol_separate.transpose(0, 1, 3, 2)
         else:
             result = recon
-            if save_separate_results:
-                result_separate = reconVol_separate
-        if save_separate_results:
-            del recon, reconVol_separate
-        else:
-            del recon
+        del recon
         if display:
             fig, (ax1, ax2) = plt.subplots(1, 2, dpi=200)
             xyMIP = result.max(0)
@@ -538,8 +515,6 @@ class FUSE_illu:
             plt.show()
         if cam_pos == "back":
             result = result[::-1, :, :]
-            if save_separate_results:
-                result_separate = result_separate[::-1, :, :, :]
 
         print("Save...")
         tifffile.imwrite(
@@ -551,17 +526,6 @@ class FUSE_illu:
             ),
             result,
         )
-        if save_separate_results:
-            self.save_results(
-                os.path.join(save_path, self.sample_params["topillu_saving_name"])
-                + "/illuFusionResult_separate{}.tif".format(
-                    ""
-                    if self.train_params["require_segmentation"]
-                    else "_without_segmentation"
-                ),
-                result_separate,
-            )
-            del result_separate
         return result
 
     def save_results(self, save_path, reconVol_separate):
@@ -831,8 +795,7 @@ def fusionResult(
 ):
     s, m, n = topVol.shape
     boundary = torch.from_numpy(boundary[None, :, None, :]).to(device)
-    if save_separate_results:
-        reconVol_separate = np.empty((s, 2, m, n), dtype=np.uint16)
+
     mask = torch.arange(m, device=device)[None, None, :, None]
     GFr[1] = GFr[1] // 4 * 2 + 1
 
@@ -857,7 +820,7 @@ def fusionResult(
 
         ind = ii - GFr[0] // 2
 
-        a, b, c = fusion_perslice(
+        a, c = fusion_perslice(
             np.stack(
                 (
                     topVol[l_s, :, :].astype(np.float32),
@@ -870,7 +833,6 @@ def fusionResult(
             device,
         )
         if save_separate_results:
-            recon[ind], reconVol_separate[ind, :] = a, b
             np.savez_compressed(
                 os.path.join(
                     path,
@@ -878,9 +840,5 @@ def fusionResult(
                 ),
                 mask=c.transpose(0, 2, 1) if T_flag else c,
             )
-        else:
-            recon[ind] = a
-    if save_separate_results:
-        return recon, reconVol_separate
-    else:
-        return recon
+        recon[ind] = a
+    return recon
