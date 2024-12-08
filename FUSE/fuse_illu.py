@@ -466,21 +466,23 @@ class FUSE_illu:
         if save_separate_results:
             if os.path.exists(
                 os.path.join(
-                    save_path, self.sample_params["topillu_saving_name"], "fusion_mask"
+                    save_path,
+                    self.sample_params["topillu_saving_name"],
+                    "fuse_illu_mask",
                 )
             ):
                 shutil.rmtree(
                     os.path.join(
                         save_path,
                         self.sample_params["topillu_saving_name"],
-                        "fusion_mask",
+                        "fuse_illu_mask",
                     )
                 )
             os.makedirs(
                 os.path.join(
                     save_path,
                     self.sample_params["topillu_saving_name"],
-                    "fusion_mask",
+                    "fuse_illu_mask",
                 )
             )
         if save_separate_results:
@@ -494,7 +496,7 @@ class FUSE_illu:
                 path=os.path.join(
                     save_path,
                     self.sample_params["topillu_saving_name"],
-                    "fusion_mask",
+                    "fuse_illu_mask",
                 ),
                 GFr=copy.deepcopy(self.train_params["window_size"]),
             )
@@ -509,7 +511,7 @@ class FUSE_illu:
                 path=os.path.join(
                     save_path,
                     self.sample_params["topillu_saving_name"],
-                    "fusion_mask",
+                    "fuse_illu_mask",
                 ),
                 GFr=copy.deepcopy(self.train_params["window_size"]),
             )

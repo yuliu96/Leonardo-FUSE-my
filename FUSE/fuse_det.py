@@ -2001,10 +2001,32 @@ class FUSE_det:
 
         else:
             invalid_region = np.zeros((s, m0, n0), dtype=bool)
-
+        if save_separate_results:
+            if os.path.exists(
+                os.path.join(
+                    save_path,
+                    self.sample_params["topillu_ventraldet_data_saving_name"],
+                    "fuse_det_mask",
+                )
+            ):
+                shutil.rmtree(
+                    os.path.join(
+                        save_path,
+                        self.sample_params["topillu_ventraldet_data_saving_name"],
+                        "fuse_det_mask",
+                    )
+                )
+            os.makedirs(
+                os.path.join(
+                    save_path,
+                    self.sample_params["topillu_ventraldet_data_saving_name"],
+                    "fuse_det_mask",
+                )
+            )
         if not det_only_flag:
             if save_separate_results:
                 reconVol, reconVol_separate = fusionResultFour(
+                    T_flag,
                     boundaryTop,
                     boundaryBottom,
                     boundaryEFront,
@@ -2019,10 +2041,16 @@ class FUSE_det:
                     self.sample_params,
                     invalid_region,
                     save_separate_results,
+                    path=os.path.join(
+                        save_path,
+                        self.sample_params["topillu_ventraldet_data_saving_name"],
+                        "fuse_det_mask",
+                    ),
                     GFr=copy.deepcopy(self.train_params["window_size"]),
                 )
             else:
                 reconVol = fusionResultFour(
+                    T_flag,
                     boundaryTop,
                     boundaryBottom,
                     boundaryEFront,
@@ -2037,6 +2065,11 @@ class FUSE_det:
                     self.sample_params,
                     invalid_region,
                     save_separate_results,
+                    path=os.path.join(
+                        save_path,
+                        self.sample_params["topillu_ventraldet_data_saving_name"],
+                        "fuse_det_mask",
+                    ),
                     GFr=copy.deepcopy(self.train_params["window_size"]),
                 )
         else:
@@ -2671,6 +2704,7 @@ def fusionResult(
 
 
 def fusionResultFour(
+    T_flag,
     boundaryTop,
     boundaryBottom,
     boundaryFront,
@@ -2685,6 +2719,7 @@ def fusionResultFour(
     sample_params,
     invalid_region,
     save_separate_results,
+    path,
     GFr=49,
 ):
     zmax = boundaryBack.shape[0]
@@ -2876,20 +2911,61 @@ def fusionResultFour(
         topMask = boundary_mask[None, l_s, :, :]
 
         ind = ii - GFr[0] // 2
-
+        if save_separate_results:
+            data = np.stack(
+                (
+                    illu_front[l_s, :, :].astype(np.float32),
+                    illu_front[l_s, :, :].astype(np.float32),
+                    illu_back[l_s, :, :].astype(np.float32),
+                    illu_back[l_s, :, :].astype(np.float32),
+                ),
+                0,
+            )
+            mask = np.concatenate(
+                (
+                    topMask * (1 - mask_front[None, l_s, :, :]),
+                    topMask * mask_front[None, l_s, :, :],
+                    bottomMask * (1 - mask_back[None, l_s, :, :]),
+                    bottomMask * mask_back[None, l_s, :, :],
+                ),
+                0,
+            )
+        else:
+            data = np.stack(
+                (
+                    illu_front[l_s, :, :].astype(np.float32),
+                    illu_back[l_s, :, :].astype(np.float32),
+                ),
+                0,
+            )
+            mask = np.concatenate(
+                (
+                    topMask,
+                    bottomMask,
+                ),
+                0,
+            )
         a, b, c = fusion_perslice(
-            illu_front[l_s, :, :].astype(np.float32)[None],
-            illu_back[l_s, :, :].astype(np.float32)[None],
-            topMask,
-            bottomMask,
+            data,
+            mask,
             GFr,
             device,
         )
         if save_separate_results:
-            reconVol[ind], reconVol_separate[ind, 0], reconVol_separate[ind, 1] = (
-                a,
-                b,
-                c,
+            b_2 = np.stack(
+                (
+                    b[0:2].sum(0),
+                    b[2:4].sum(0),
+                ),
+                0,
+            )
+            reconVol[ind], reconVol_separate[ind] = a, b_2
+            np.savez_compressed(
+                os.path.join(
+                    path,
+                    "{:0>{}}".format(ind, 5) + ".npz",
+                ),
+                mask=c.transpose(0, 2, 1) if T_flag else c,
             )
         else:
             reconVol[ind] = a
