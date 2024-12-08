@@ -497,6 +497,7 @@ class FUSE_det:
                         ),
                         z_downsample_ratio,
                         xy_downsample_ratio,
+                        save_separate_results,
                         z_spacing,
                         xy_spacing,
                         window_size=[5, 59],
@@ -2049,11 +2050,17 @@ class FUSE_det:
             )
         else:
             reconVol = fusionResult(
+                T_flag,
                 illu_front,
                 illu_back,
                 boundaryTop,
                 self.train_params["device"],
                 save_separate_results,
+                path=os.path.join(
+                    save_path,
+                    self.sample_params["topillu_ventraldet_data_saving_name"],
+                    "fuse_det_mask",
+                ),
                 GFr=copy.deepcopy(self.train_params["window_size"]),
             )
 
@@ -2107,6 +2114,7 @@ class FUSE_det:
         translating_information: str,
         z_upsample_ratio: int = 1,
         xy_upsample_ratio: int = 1,
+        save_separate_results: bool = False,
         z_spacing: int = None,
         xy_spacing: int = None,
         skip_apply_registration: bool = False,
@@ -2307,13 +2315,40 @@ class FUSE_det:
                 align_corners=True,
             ).data.numpy()[0, 0]
         )
-
+        if save_separate_results:
+            if os.path.exists(
+                os.path.join(
+                    save_path,
+                    "high_res",
+                    "fuse_det_mask",
+                )
+            ):
+                shutil.rmtree(
+                    os.path.join(
+                        save_path,
+                        "high_res",
+                        "fuse_det_mask",
+                    )
+                )
+            os.makedirs(
+                os.path.join(
+                    save_path,
+                    "high_res",
+                    "fuse_det_mask",
+                )
+            )
         reconVol = fusionResult(
+            T_flag,
             ventral_det_data,
             dorsal_det_data,
             boundary,
             self.train_params["device"],
-            False,
+            save_separate_results,
+            path=os.path.join(
+                save_path,
+                "high_res",
+                "fuse_det_mask",
+            ),
             GFr=window_size,
         )
 
@@ -2581,11 +2616,13 @@ class FUSE_det:
 
 
 def fusionResult(
+    T_flag,
     topVol,
     bottomVol,
     boundary,
     device,
     save_separate_results,
+    path,
     GFr=[5, 49],
 ):
     s, m, n = bottomVol.shape
@@ -2628,13 +2665,25 @@ def fusionResult(
         # topVol[l_s, :, :].astype(np.float32)[None]
 
         a, c = fusion_perslice(
-            topVol_tmp[None],
-            bottomVol_tmp[None],
-            topMask,
-            bottomMask,
+            np.stack(
+                (
+                    topVol_tmp,
+                    bottomVol_tmp,
+                ),
+                0,
+            ),
+            torch.cat((topMask, bottomMask), 0),
             GFr,
             device,
         )
+        if save_separate_results:
+            np.savez_compressed(
+                os.path.join(
+                    path,
+                    "{:0>{}}".format(ind, 5) + ".npz",
+                ),
+                mask=c.transpose(0, 2, 1) if T_flag else c,
+            )
         recon[ind] = a
     return recon
 
